@@ -26,8 +26,20 @@ class SequenceHandler:
         """
         self.raw_sequence = sequence
         self.sequence = self._clean_sequence(sequence)
-        self.name = name
+        self.name = self._sanitize_name(name)
         self._validate()
+    
+    def _sanitize_name(self, name: str) -> str:
+        """Sanitize protein name for filesystem compatibility."""
+        # Replace problematic characters with underscores
+        import re
+        # Replace |, /, \, :, *, ?, ", <, > with underscore
+        sanitized = re.sub(r'[|/\\:*?"<>]', '_', name)
+        # Remove leading/trailing whitespace and underscores
+        sanitized = sanitized.strip().strip('_')
+        # Collapse multiple underscores
+        sanitized = re.sub(r'_+', '_', sanitized)
+        return sanitized if sanitized else "protein"
     
     def _clean_sequence(self, sequence: str) -> str:
         """Remove whitespace and convert to uppercase."""
@@ -113,7 +125,22 @@ class SequenceHandler:
         for line in lines:
             line = line.strip()
             if line.startswith(">"):
-                name = line[1:].split()[0]
+                # Extract a cleaner name from FASTA header
+                header = line[1:]
+                # Try to get gene name or ID
+                parts = header.split()
+                if parts:
+                    # For UniProt format like sp|P50995|ANX11_HUMAN
+                    first_part = parts[0]
+                    if '|' in first_part:
+                        # Extract the protein name (e.g., ANX11_HUMAN)
+                        pipe_parts = first_part.split('|')
+                        if len(pipe_parts) >= 3:
+                            name = pipe_parts[2]  # Get ANX11_HUMAN
+                        else:
+                            name = pipe_parts[-1]
+                    else:
+                        name = first_part
             elif line:
                 sequence_lines.append(line)
         
